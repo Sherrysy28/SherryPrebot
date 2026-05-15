@@ -5,7 +5,7 @@ from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = "8795611922:AAGcFN_4awe8AHx6xjd-g0Ndbyk2RGjy1Tg"
 ADMIN_ID = 1695384856
 DATA_FILE = "shop_data.json"
 
