@@ -516,7 +516,7 @@ def main():
     app.add_handler(MessageHandler(filters.PHOTO, receive_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
-    print("Bot Running...")
+    print("BOT STARTING...")
     app.run_polling()
 
 if __name__ == "__main__":
