@@ -237,22 +237,22 @@ def callback(call):
     reply_markup=kb
 )
 if call.data.startswith("confirm_"):
-        _, cid, idx = call.data.split("_")
-        idx = int(idx)
-        uid = str(call.from_user.id)
+    _, cid, idx = call.data.split("_")
+   idx = int(idx)
+   uid = str(call.from_user.id)
 
-        name, price = data["packages"][cid][idx]
-        key = f"{cid}_{idx}"
+   name, price = data["packages"][cid][idx]
+   key = f"{cid}_{idx}"
  
 if len(data["stock"].get(key, [])) <= 0:
-                    bot.send_message(call.message.chat.id, "❌ Stock Out")
-                    return
+    bot.send_message(call.message.chat.id, "❌ Stock Out")
+    return
 
-            if data["balances"][uid] < price:
-                    bot.send_message(call.message.chat.id, "❌ Balance မလောက်ပါ")
-                    return
+if data["balances"][uid] < price:
+    bot.send_message(call.message.chat.id, "❌ Balance မလောက်ပါ")
+    return
 
-            item = data["stock"][key].pop(0)
+item = data["stock"][key].pop(0)
             data["balances"][uid] -= price
             data["orders"][uid].append(f"{data['categories'][cid]} - {name}")
         save_data()
