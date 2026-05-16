@@ -1,29 +1,16 @@
-import json
 import os
-import threading
-from flask import Flask
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
+import json
+from flask import Flask, request
+import telebot
+from telebot import types
 
 TOKEN = "8795611922:AAHfMunYyaCdXhYWNGS9wEQ8Z1Jlo7Redrw"
 ADMIN_ID = 1695384856
+RENDER_URL = "https://sherryprebot.onrender.com"
 DATA_FILE = "shop_data.json"
 
-web_app = Flask(__name__)
-
-@web_app.route("/")
-def home():
-    return "Bot is running!"
-
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    web_app.run(host="0.0.0.0", port=port)
-
-menu_keyboard = [
-    ["🛍 Products", "💰 My Balance"],
-    ["💳 Top Up", "📦 My Orders"],
-    ["🏠 Main Menu"]
-]
+bot = telebot.TeleBot(TOKEN)
+app = Flask(__name__)
 
 default_data = {
     "kpay": "09987654321",
@@ -33,11 +20,7 @@ default_data = {
     "orders": {},
     "stock": {},
     "topups": {},
-    "categories": {
-        "1": "Telegram Premium",
-        "2": "CapCut",
-        "3": "PicsArt"
-    },
+    "categories": {"1": "Telegram Premium", "2": "CapCut", "3": "PicsArt"},
     "packages": {
         "1": [["3 Month", 42000], ["6 Month", 61000], ["12 Month", 109000]],
         "2": [["1 Month Share", 4000], ["1 Month Private", 8000]],
@@ -48,160 +31,56 @@ default_data = {
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
-            saved = json.load(f)
+            d = json.load(f)
         for k, v in default_data.items():
-            saved.setdefault(k, v)
-        return saved
+            d.setdefault(k, v)
+        return d
     return default_data.copy()
+
+data = load_data()
 
 def save_data():
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-data = load_data()
-save_data()
-
 def is_admin(uid):
     return uid == ADMIN_ID
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    uid = str(user.id)
+def menu():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("🛍 Products", "💰 My Balance")
+    kb.row("💳 Top Up", "📦 My Orders")
+    kb.row("🏠 Main Menu")
+    return kb
 
+@bot.message_handler(commands=["start"])
+def start(msg):
+    uid = str(msg.from_user.id)
     if uid not in data["users"]:
         data["users"].append(uid)
-
     data["balances"].setdefault(uid, 0)
     data["orders"].setdefault(uid, [])
     save_data()
 
-    text = f"""
-👋 Hello {user.first_name}
+    username = msg.from_user.username or "No username"
+    bot.send_message(
+        msg.chat.id,
+        f"""👋 Hello {msg.from_user.first_name}
 
 👤 User Info
 ID: {uid}
-Username: @{user.username or "No username"}
+Username: @{username}
 Balance: {data["balances"][uid]:,} MMK
 
-👇 Menu ကိုရွေးပါ
-"""
-    await update.message.reply_text(
-        text,
-        reply_markup=ReplyKeyboardMarkup(menu_keyboard, resize_keyboard=True)
+👇 Menu ကိုရွေးပါ""",
+        reply_markup=menu()
     )
 
-async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "📦 Product Categories\n\n"
-    kb = []
-
-    for cid, name in data["categories"].items():
-        text += f"{cid}. {name}\n"
-        kb.append([InlineKeyboardButton(f"{cid}. {name}", callback_data=f"cat_{cid}")])
-
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
-
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    q = query.data
-    uid = str(query.from_user.id)
-    data["balances"].setdefault(uid, 0)
-    data["orders"].setdefault(uid, [])
-
-    if q.startswith("cat_"):
-        cid = q.split("_")[1]
-        text = f"📦 {data['categories'][cid]}\n\n"
-        kb = []
-
-        for i, item in enumerate(data["packages"].get(cid, [])):
-            name, price = item
-            key = f"{cid}_{i}"
-            stock_count = len(data["stock"].get(key, []))
-            text += f"📦 {name} - {price:,} MMK (Stock {stock_count})\n"
-            kb.append([InlineKeyboardButton(name, callback_data=f"buy_{cid}_{i}")])
-
-        await query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
-
-    elif q.startswith("buy_"):
-        _, cid, idx = q.split("_")
-        idx = int(idx)
-        name, price = data["packages"][cid][idx]
-        key = f"{cid}_{idx}"
-
-        if len(data["stock"].get(key, [])) <= 0:
-            await query.message.reply_text("❌ Out of stock")
-            return
-
-        if data["balances"][uid] < price:
-            await query.message.reply_text("❌ Balance မလောက်ပါ")
-            return
-
-        item = data["stock"][key].pop(0)
-        data["balances"][uid] -= price
-        data["orders"][uid].append(f"{data['categories'][cid]} - {name}")
-        save_data()
-
-        await query.message.reply_text(f"""
-✅ Order Success
-
-📦 {data['categories'][cid]}
-🛍 {name}
-💵 {price:,} MMK
-
-🎁 Product:
-{item}
-""")
-
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    uid = str(update.effective_user.id)
-
-    data["balances"].setdefault(uid, 0)
-    data["orders"].setdefault(uid, [])
-
-    if text == "🛍 Products":
-        await show_categories(update, context)
-
-    elif text == "💰 My Balance":
-        await update.message.reply_text(f"💰 Balance = {data['balances'][uid]:,} MMK")
-
-    elif text == "💳 Top Up":
-        await update.message.reply_text(f"""
-💳 Top Up
-
-KBZPay - {data['kpay']}
-WavePay - {data['wave']}
-
-Screenshot ပို့ပါ
-""")
-
-    elif text == "📦 My Orders":
-        orders = data["orders"].get(uid, [])
-        if not orders:
-            await update.message.reply_text("No Orders")
-        else:
-            await update.message.reply_text("\n".join(orders))
-
-    elif text == "🏠 Main Menu":
-        await start(update, context)
-
-async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = str(update.effective_user.id)
-    msg = await context.bot.send_photo(
-        chat_id=ADMIN_ID,
-        photo=update.message.photo[-1].file_id,
-        caption=f"💳 New Top Up\nUser ID: {uid}\n\nReply amount only."
-    )
-    data["topups"][str(msg.message_id)] = uid
-    save_data()
-    await update.message.reply_text("✅ Screenshot received")
-
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+@bot.message_handler(commands=["admin"])
+def admin(msg):
+    if not is_admin(msg.from_user.id):
         return
-    await update.message.reply_text("""
-🛠 Admin Commands
+    bot.send_message(msg.chat.id, """🛠 Admin Commands
 
 /products
 /stock
@@ -213,106 +92,215 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /bc message
 """)
 
-async def products(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+@bot.message_handler(commands=["products"])
+def products(msg):
+    if not is_admin(msg.from_user.id):
         return
-
-    msg = "🛠 Products\n\n"
+    text = "🛠 Products\n\n"
     for cid, cname in data["categories"].items():
-        msg += f"{cid}. {cname}\n"
-        for i, item in enumerate(data["packages"].get(cid, [])):
-            msg += f"{cid}_{i} = {item[0]} | {item[1]:,}\n"
-        msg += "\n"
+        text += f"{cid}. {cname}\n"
+        for i, p in enumerate(data["packages"].get(cid, [])):
+            text += f"{cid}_{i} = {p[0]} | {p[1]:,}\n"
+        text += "\n"
+    bot.send_message(msg.chat.id, text)
 
-    await update.message.reply_text(msg)
-
-async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+@bot.message_handler(commands=["stock"])
+def stock(msg):
+    if not is_admin(msg.from_user.id):
         return
+    text = "📦 Stock\n\n"
+    for cid, packs in data["packages"].items():
+        text += f"{data['categories'].get(cid, cid)}\n"
+        for i, p in enumerate(packs):
+            key = f"{cid}_{i}"
+            text += f"{key} = {p[0]} | {len(data['stock'].get(key, []))}\n"
+        text += "\n"
+    bot.send_message(msg.chat.id, text)
 
-    msg = "📦 Stock\n\n"
-    for key, items in data["stock"].items():
-        msg += f"{key} = {len(items)}\n"
-
-    await update.message.reply_text(msg)
-
-async def addstock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+@bot.message_handler(commands=["addstock"])
+def addstock(msg):
+    if not is_admin(msg.from_user.id):
         return
+    parts = msg.text.split(" ", 2)
+    if len(parts) < 3:
+        bot.reply_to(msg, "/addstock 1_0 account")
+        return
+    key, item = parts[1], parts[2]
+    data["stock"].setdefault(key, []).append(item)
+    save_data()
+    bot.reply_to(msg, f"✅ Stock Added\n{key} = {len(data['stock'][key])}")
 
+@bot.message_handler(commands=["clearstock"])
+def clearstock(msg):
+    if not is_admin(msg.from_user.id):
+        return
+    parts = msg.text.split()
+    if len(parts) < 2:
+        bot.reply_to(msg, "/clearstock 1_0")
+        return
+    data["stock"][parts[1]] = []
+    save_data()
+    bot.reply_to(msg, "✅ Stock Cleared")
+
+@bot.message_handler(commands=["setprice"])
+def setprice(msg):
+    if not is_admin(msg.from_user.id):
+        return
     try:
-        key = context.args[0]
-        item = " ".join(context.args[1:])
-        data["stock"].setdefault(key, [])
-        data["stock"][key].append(item)
+        _, key, price = msg.text.split()
+        cid, idx = key.split("_")
+        data["packages"][cid][int(idx)][1] = int(price)
         save_data()
-        await update.message.reply_text("✅ Stock Added")
+        bot.reply_to(msg, "✅ Price Updated")
     except:
-        await update.message.reply_text("/addstock 1_0 account")
+        bot.reply_to(msg, "/setprice 1_0 50000")
 
-async def clearstock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+@bot.message_handler(commands=["setkpay"])
+def setkpay(msg):
+    if not is_admin(msg.from_user.id):
         return
-
-    key = context.args[0]
-    data["stock"][key] = []
+    data["kpay"] = msg.text.replace("/setkpay", "").strip()
     save_data()
-    await update.message.reply_text("✅ Stock Cleared")
+    bot.reply_to(msg, f"✅ KBZPay Updated\n\n{data['kpay']}")
 
-async def setprice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+@bot.message_handler(commands=["setwave"])
+def setwave(msg):
+    if not is_admin(msg.from_user.id):
         return
-
-    key = context.args[0]
-    price = int(context.args[1])
-    cid, idx = key.split("_")
-    data["packages"][cid][int(idx)][1] = price
+    data["wave"] = msg.text.replace("/setwave", "").strip()
     save_data()
-    await update.message.reply_text("✅ Price Updated")
+    bot.reply_to(msg, f"✅ WavePay Updated\n\n{data['wave']}")
 
-async def setkpay(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+@bot.message_handler(commands=["bc"])
+def bc(msg):
+    if not is_admin(msg.from_user.id):
         return
-    data["kpay"] = " ".join(context.args)
-    save_data()
-    await update.message.reply_text("✅ KBZPay Updated")
-
-async def setwave(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        return
-    data["wave"] = " ".join(context.args)
-    save_data()
-    await update.message.reply_text("✅ WavePay Updated")
-
-async def bc(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        return
-
-    msg = " ".join(context.args)
+    text = msg.text.replace("/bc", "").strip()
     ok = 0
     fail = 0
-
     for uid in data["users"]:
         try:
-            await context.bot.send_message(chat_id=int(uid), text=msg)
+            bot.send_message(int(uid), text)
             ok += 1
         except:
             fail += 1
+    bot.reply_to(msg, f"✅ Sent: {ok}\n❌ Failed: {fail}")
 
-    await update.message.reply_text(f"✅ Sent: {ok}\n❌ Failed: {fail}")
+def show_products(chat_id):
+    kb = types.InlineKeyboardMarkup()
+    text = "📦 Product Categories\n\n"
+    for cid, name in data["categories"].items():
+        text += f"{cid}. {name}\n"
+        kb.add(types.InlineKeyboardButton(f"{cid}. {name}", callback_data=f"cat_{cid}"))
+    bot.send_message(chat_id, text, reply_markup=kb)
 
-def main():
-    threading.Thread(target=run_web, daemon=True).start()
+@bot.callback_query_handler(func=lambda call: True)
+def callback(call):
+    uid = str(call.from_user.id)
+    data["balances"].setdefault(uid, 0)
+    data["orders"].setdefault(uid, [])
 
-    app = Application.builder().token(TOKEN).build()
+    if call.data.startswith("cat_"):
+        cid = call.data.split("_")[1]
+        kb = types.InlineKeyboardMarkup()
+        text = f"📦 {data['categories'][cid]}\n\n"
+        for i, p in enumerate(data["packages"].get(cid, [])):
+            key = f"{cid}_{i}"
+            stock_count = len(data["stock"].get(key, []))
+            text += f"{p[0]} - {p[1]:,} MMK | Stock {stock_count}\n"
+            kb.add(types.InlineKeyboardButton(p[0], callback_data=f"buy_{cid}_{i}"))
+        bot.send_message(call.message.chat.id, text, reply_markup=kb)
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-    app.add_handler(MessageHandler(filters.PHOTO, receive_photo))
+    elif call.data.startswith("buy_"):
+        _, cid, idx = call.data.split("_")
+        idx = int(idx)
+        name, price = data["packages"][cid][idx]
+        key = f"{cid}_{idx}"
 
-    print("BOT STARTING...")
-    app.run_polling(drop_pending_updates=True)
+        if len(data["stock"].get(key, [])) <= 0:
+            bot.send_message(call.message.chat.id, "❌ Out of stock")
+            return
+
+        if data["balances"][uid] < price:
+            bot.send_message(call.message.chat.id, "❌ Balance မလောက်ပါ")
+            return
+
+        item = data["stock"][key].pop(0)
+        data["balances"][uid] -= price
+        data["orders"][uid].append(f"{data['categories'][cid]} - {name}")
+        save_data()
+
+        bot.send_message(call.message.chat.id, f"""✅ Order Success
+
+📦 {data['categories'][cid]}
+🛍 {name}
+💵 {price:,} MMK
+
+🎁 Product:
+{item}""")
+
+@bot.message_handler(content_types=["photo"])
+def photo(msg):
+    uid = str(msg.from_user.id)
+    sent = bot.send_photo(
+        ADMIN_ID,
+        msg.photo[-1].file_id,
+        caption=f"💳 New Top Up\nUser ID: {uid}\n\nReply amount only."
+    )
+    data["topups"][str(sent.message_id)] = uid
+    save_data()
+    bot.reply_to(msg, "✅ Screenshot received")
+
+@bot.message_handler(func=lambda m: True)
+def text(msg):
+    uid = str(msg.from_user.id)
+    data["balances"].setdefault(uid, 0)
+    data["orders"].setdefault(uid, [])
+
+    if msg.reply_to_message and is_admin(msg.from_user.id):
+        rid = str(msg.reply_to_message.message_id)
+        if rid in data["topups"]:
+            try:
+                amount = int(msg.text.replace(",", "").strip())
+                target = data["topups"][rid]
+                data["balances"][target] = data["balances"].get(target, 0) + amount
+                save_data()
+                bot.reply_to(msg, f"✅ Approved {amount:,}")
+                bot.send_message(int(target), f"✅ Top Up Approved\nAmount: {amount:,}\nBalance: {data['balances'][target]:,}")
+                return
+            except:
+                bot.reply_to(msg, "Amount only")
+                return
+
+    if msg.text == "🛍 Products":
+        show_products(msg.chat.id)
+    elif msg.text == "💰 My Balance":
+        bot.send_message(msg.chat.id, f"💰 Balance = {data['balances'][uid]:,} MMK")
+    elif msg.text == "💳 Top Up":
+        bot.send_message(msg.chat.id, f"""💳 Top Up
+
+KBZPay - {data['kpay']}
+WavePay - {data['wave']}
+
+Screenshot ပို့ပါ""")
+    elif msg.text == "📦 My Orders":
+        orders = data["orders"].get(uid, [])
+        bot.send_message(msg.chat.id, "\n".join(orders) if orders else "No Orders")
+    elif msg.text == "🏠 Main Menu":
+        start(msg)
+
+@app.route("/")
+def home():
+    return "Bot is running!"
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    update = telebot.types.Update.de_json(request.get_data().decode("utf-8"))
+    bot.process_new_updates([update])
+    return "OK", 200
 
 if __name__ == "__main__":
-    main()
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{https://sherryprebot.onrender.com}/webhook")
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
