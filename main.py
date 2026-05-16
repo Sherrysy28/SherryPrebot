@@ -254,6 +254,7 @@ if call.data.startswith("confirm_"):
 
     item = data["stock"][key].pop(0)
     data["balances"][uid] -= price
+
     data["orders"][uid].append(
         f"{data['categories'][cid]} | {name} | {item}"
     )
