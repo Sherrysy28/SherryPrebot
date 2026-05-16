@@ -243,8 +243,8 @@ if call.data.startswith("confirm_"):
 
         name, price = data["packages"][cid][idx]
         key = f"{cid}_{idx}"
-
-            if len(data["stock"].get(key, [])) <= 0:
+ 
+if len(data["stock"].get(key, [])) <= 0:
                     bot.send_message(call.message.chat.id, "❌ Stock Out")
                     return
 
