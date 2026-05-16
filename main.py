@@ -114,8 +114,8 @@ def stock(msg):
         for i, p in enumerate(packs):
             key = f"{cid}_{i}"
             stock = len(data['stock'].get(key, []))
-stock_text = f"✅ Stock {stock}" if stock > 0 else "❌ Stock Out"
-text += f"{key} = {p[0]} | {stock_text}\n"
+            stock_text = f"✅ Stock {stock}" if stock > 0 else "❌ Stock Out"
+            text += f"{key} = {p[0]} | {stock_text}\n"
         text += "\n"
     bot.send_message(msg.chat.id, text)
 
