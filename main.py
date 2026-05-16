@@ -307,22 +307,12 @@ def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin))
-    app.add_handler(CommandHandler("products", products))
-    app.add_handler(CommandHandler("stock", stock))
-    app.add_handler(CommandHandler("addstock", addstock))
-    app.add_handler(CommandHandler("clearstock", clearstock))
-    app.add_handler(CommandHandler("setprice", setprice))
-    app.add_handler(CommandHandler("setkpay", setkpay))
-    app.add_handler(CommandHandler("setwave", setwave))
-    app.add_handler(CommandHandler("bc", bc))
-
     app.add_handler(CallbackQueryHandler(button))
-    app.add_handler(MessageHandler(filters.PHOTO, receive_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    app.add_handler(MessageHandler(filters.PHOTO, receive_photo))
 
     print("BOT STARTING...")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
