@@ -236,7 +236,7 @@ def callback(call):
 ဝယ်မှာသေချာပြီလား?""",
     reply_markup=kb
 )
-elif call.data.startswith("confirm_"):
+if call.data.startswith("confirm_"):
         _, cid, idx = call.data.split("_")
         idx = int(idx)
         uid = str(call.from_user.id)
