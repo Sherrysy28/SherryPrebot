@@ -209,7 +209,8 @@ def callback(call):
         for i, p in enumerate(data["packages"].get(cid, [])):
             key = f"{cid}_{i}"
             stock_count = len(data["stock"].get(key, []))
-            text += f"{p[0]} - {p[1]:,} MMK | Stock {stock_count}\n"
+            stock_text = f"✅ Stock {stock_count}" if stock_count > 0 else "❌ Stock Out"
+            text += f"{p[0]} - {p[1]:,} MMK | {stock_text}\n"
             kb.add(types.InlineKeyboardButton(p[0], callback_data=f"buy_{cid}_{i}"))
         bot.send_message(call.message.chat.id, text, reply_markup=kb)
 
