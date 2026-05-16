@@ -253,11 +253,11 @@ if data["balances"][uid] < price:
     return
 
 item = data["stock"][key].pop(0)
-            data["balances"][uid] -= price
-            data["orders"][uid].append(f"{data['categories'][cid]} - {name}")
-        save_data()
+data["balances"][uid] -= price
+data["orders"][uid].append(f"{data['categories'][cid]} - {name}")
+save_data()
 
-        bot.send_message(call.message.chat.id, f"""✅ Order Success
+bot.send_message(call.message.chat.id, f"""✅ Order Success
 
 📦 {data['categories'][cid]}
 🛍 {name}
