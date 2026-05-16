@@ -265,7 +265,7 @@ if call.data.startswith("confirm_"):
 
 🎁 Product:
 {item}""")
-elif call.data == "cancel_buy":
+if call.data == "cancel_buy":
     bot.send_message(call.message.chat.id, "❌ Order Cancelled")
 @bot.message_handler(content_types=["photo"])
 def photo(msg):
