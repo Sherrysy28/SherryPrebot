@@ -238,33 +238,40 @@ def callback(call):
 )
 if call.data.startswith("confirm_"):
     _, cid, idx = call.data.split("_")
-   idx = int(idx)
-   uid = str(call.from_user.id)
+    idx = int(idx)
+    uid = str(call.from_user.id)
 
-   name, price = data["packages"][cid][idx]
-   key = f"{cid}_{idx}"
- 
-if len(data["stock"].get(key, [])) <= 0:
-    bot.send_message(call.message.chat.id, "❌ Stock Out")
-    return
+    name, price = data["packages"][cid][idx]
+    key = f"{cid}_{idx}"
 
-if data["balances"][uid] < price:
-    bot.send_message(call.message.chat.id, "❌ Balance မလောက်ပါ")
-    return
+    if len(data["stock"].get(key, [])) <= 0:
+        bot.send_message(call.message.chat.id, "❌ Stock Out")
+        return
 
-item = data["stock"][key].pop(0)
-data["balances"][uid] -= price
-data["orders"][uid].append(f"{data['categories'][cid]} - {name}")
-save_data()
+    if data["balances"][uid] < price:
+        bot.send_message(call.message.chat.id, "❌ Balance မလောက်ပါ")
+        return
 
-bot.send_message(call.message.chat.id, f"""✅ Order Success
+    item = data["stock"][key].pop(0)
+    data["balances"][uid] -= price
+    data["orders"][uid].append(
+        f"{data['categories'][cid]} | {name} | {item}"
+    )
+
+    save_data()
+
+    bot.send_message(
+        call.message.chat.id,
+        f"""✅ Purchase Success
 
 📦 {data['categories'][cid]}
 🛍 {name}
 💵 {price:,} MMK
 
-🎁 Product:
-{item}""")
+🔑 Account:
+{item}
+"""
+    )
 if call.data == "cancel_buy":
     bot.send_message(call.message.chat.id, "❌ Order Cancelled")
 @bot.message_handler(content_types=["photo"])
