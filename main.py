@@ -236,7 +236,7 @@ def callback(call):
 ဝယ်မှာသေချာပြီလား?""",
     reply_markup=kb
 )
-elif call.data.startswith("confirm_"):
+if call.data.startswith("confirm_"):
         _, cid, idx = call.data.split("_")
         idx = int(idx)
         uid = str(call.from_user.id)
@@ -266,7 +266,7 @@ elif call.data.startswith("confirm_"):
 🎁 Product:
 {item}""")
 
-    elif call.data == "cancel_buy":
+    if call.data == "cancel_buy":
         bot.send_message(call.message.chat.id, "❌ Order Cancelled")
 @bot.message_handler(content_types=["photo"])
 def photo(msg):
