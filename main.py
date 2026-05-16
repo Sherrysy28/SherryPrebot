@@ -217,30 +217,25 @@ def callback(call):
     elif call.data.startswith("buy_"):
         _, cid, idx = call.data.split("_")
         idx = int(idx)
+
         name, price = data["packages"][cid][idx]
-        key = f"{cid}_{idx}"
 
-        if len(data["stock"].get(key, [])) <= 0:
-            bot.send_message(call.message.chat.id, "❌ Out of stock")
-            return
+        kb = types.InlineKeyboardMarkup()
+        kb.add(
+            types.InlineKeyboardButton("✅ Confirm", callback_data=f"confirm_{cid}_{idx}"),
+            types.InlineKeyboardButton("❌ Cancel", callback_data="cancel_buy")
+        )
 
-        if data["balances"][uid] < price:
-            bot.send_message(call.message.chat.id, "❌ Balance မလောက်ပါ")
-            return
+        bot.send_message(
+    call.message.chat.id,
+    f"""🛒 Buy Confirmation
 
-        item = data["stock"][key].pop(0)
-        data["balances"][uid] -= price
-        data["orders"][uid].append(f"{data['categories'][cid]} - {name}")
-        save_data()
+🎁 Product: {name}
+💵 Price: {price:,} MMK
 
-        bot.send_message(call.message.chat.id, f"""✅ Order Success
-
-📦 {data['categories'][cid]}
-🛍 {name}
-💵 {price:,} MMK
-
-🎁 Product:
-{item}""")
+ဝယ်မှာသေချာပြီလား?""",
+    reply_markup=kb
+)
 
 @bot.message_handler(content_types=["photo"])
 def photo(msg):
